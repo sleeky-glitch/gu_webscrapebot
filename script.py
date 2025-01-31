@@ -8,15 +8,10 @@ import re
 # Set fixed current date
 CURRENT_DATE = datetime(2025, 1, 30)
 
-def highlight_text(text, search_term, is_gujarati=False):
+def highlight_text(text, search_term):
     """Highlight search term in text using markdown bold syntax"""
     if not search_term:
         return text
-    
-    # If searching in Gujarati mode, ensure search term is in Gujarati
-    if is_gujarati and not any('\u0A80' <= c <= '\u0AFF' for c in search_term):
-        translator = GoogleTranslator(source='auto', target='gu')
-        search_term = translator.translate(search_term)
     
     # Case insensitive replacement
     pattern = re.compile(re.escape(search_term), re.IGNORECASE)
@@ -81,16 +76,7 @@ def load_articles(data_folder="data"):
                         })
     return articles
 
-def translate_text(text, target_lang):
-    """Translate text to target language"""
-    try:
-        translator = GoogleTranslator(source='auto', target=target_lang)
-        return translator.translate(text)
-    except Exception as e:
-        st.error(f"Translation error: {str(e)}")
-        return text
-
-def search_articles(articles, query, language, date_filter):
+def search_articles(articles, query, date_filter):
     """Search articles based on query and filters"""
     results = []
     
@@ -107,72 +93,56 @@ def search_articles(articles, query, language, date_filter):
     else:
         date_threshold = datetime.min
     
-    # Translate query if language is Gujarati
-    search_query = query
-    if language == "gu":
-        search_query = translate_text(query, 'gu')
-    
     for article in articles:
         # Check date filter
         if article['date'] >= date_threshold:
             # Search in content
-            if search_query.lower() in article['content'].lower():
+            if query.lower() in article['content'].lower():
                 results.append(article)
     
     return results
 
 def main():
-    st.title("News Article Search")
+    st.title("સમાચાર લેખ શોધ")  # "News Article Search" in Gujarati
     
     # Display current date (fixed)
-    st.write(f"Current Date: {CURRENT_DATE.strftime('%d-%m-%Y')}")
-    
-    # Language selection
-    language = st.selectbox(
-        "Select Language",
-        ["English", "ગુજરાતી (Gujarati)"],
-        format_func=lambda x: x
-    )
-    
-    # Convert language selection to code
-    lang_code = "en" if language == "English" else "gu"
+    st.write(f"વર્તમાન તારીખ: {CURRENT_DATE.strftime('%d-%m-%Y')}")  # "Current Date" in Gujarati
     
     # Search input
     search_query = st.text_input(
-        "Enter search term",
+        "શોધ શબ્દ દાખલ કરો",  # "Enter search term" in Gujarati
         key="search_input"
     )
     
     # Date filter
     date_filter = st.selectbox(
-        "Filter by date",
-        ["All time", "Past 24 hours", "Past week", "Past month"]
+        "તારીખ દ્વારા ફિલ્ટર કરો",  # "Filter by date" in Gujarati
+        ["બધો સમય", "છેલ્લા 24 કલાક", "છેલ્લા અઠવાડિયા", "છેલ્લા મહિના"]  # Date options in Gujarati
     )
+    
+    # Convert date filter selections to English for processing
+    date_filter_mapping = {
+        "બધો સમય": "All time",
+        "છેલ્લા 24 કલાક": "Past 24 hours",
+        "છેલ્લા અઠવાડિયા": "Past week",
+        "છેલ્લા મહિના": "Past month"
+    }
     
     # Load articles
     articles = load_articles()
     
     if search_query:
-        results = search_articles(articles, search_query, lang_code, date_filter)
+        results = search_articles(articles, search_query, date_filter_mapping[date_filter])
         
-        st.subheader(f"Found {len(results)} results")
+        st.subheader(f"{len(results)} પરિણામો મળ્યા")  # "Found x results" in Gujarati
         
         for article in results:
             with st.expander(article['title']):
-                # Format and translate content based on selected language
-                content = article['content']
-                if lang_code != "gu":  # If English is selected, translate from Gujarati
-                    content = translate_text(content, 'en')
-                
                 # Format the content
-                formatted_content = format_article_content(content)
+                formatted_content = format_article_content(article['content'])
                 
                 # Highlight search terms
-                highlighted_content = highlight_text(
-                    formatted_content, 
-                    search_query, 
-                    is_gujarati=(lang_code == "gu")
-                )
+                highlighted_content = highlight_text(formatted_content, search_query)
                 
                 # Display using markdown
                 st.markdown(highlighted_content)
