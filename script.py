@@ -8,14 +8,33 @@ import re
 # Set fixed current date
 CURRENT_DATE = datetime(2025, 1, 30)
 
-def highlight_text(text, search_term):
-    """Highlight search term in text using markdown bold syntax"""
+def translate_to_gujarati(text):
+    """Translate text to Gujarati if it's in English"""
+    # Check if text contains English characters
+    if text and all(ord(char) < 128 for char in text.strip()):
+        try:
+            translator = GoogleTranslator(source='auto', target='gu')
+            return translator.translate(text)
+        except Exception as e:
+            st.error(f"Translation error: {str(e)}")
+            return text
+    return text
+
+def highlight_text(text, search_term, translated_term):
+    """Highlight both original and translated search terms in text"""
     if not search_term:
         return text
     
-    # Case insensitive replacement
-    pattern = re.compile(re.escape(search_term), re.IGNORECASE)
-    return pattern.sub(lambda m: f"**{m.group()}**", text)
+    # Highlight both original and translated terms
+    terms = [search_term, translated_term]
+    highlighted_text = text
+    
+    for term in terms:
+        if term and term.strip():
+            pattern = re.compile(re.escape(term.strip()), re.IGNORECASE)
+            highlighted_text = pattern.sub(lambda m: f"**{m.group()}**", highlighted_text)
+    
+    return highlighted_text
 
 def format_article_content(content):
     """Format the article content for better readability"""
@@ -37,7 +56,7 @@ def format_article_content(content):
     
     # Add formatted link if found
     if link_match:
-        formatted_content += f"[Link to news article]({link_match.group(1)})\n\n"
+        formatted_content += f"[સમાચાર લેખની લિંક]({link_match.group(1)})\n\n"
     
     # Extract and clean main content
     main_content = re.sub(r'Title:.+\n|Date:.+\n|Link:.+\n', '', content).strip()
@@ -76,7 +95,7 @@ def load_articles(data_folder="data"):
                         })
     return articles
 
-def search_articles(articles, query, date_filter):
+def search_articles(articles, query, translated_query, date_filter):
     """Search articles based on query and filters"""
     results = []
     
@@ -96,8 +115,9 @@ def search_articles(articles, query, date_filter):
     for article in articles:
         # Check date filter
         if article['date'] >= date_threshold:
-            # Search in content
-            if query.lower() in article['content'].lower():
+            # Search in content with both original and translated query
+            content_lower = article['content'].lower()
+            if (query.lower() in content_lower) or (translated_query and translated_query.lower() in content_lower):
                 results.append(article)
     
     return results
@@ -106,18 +126,18 @@ def main():
     st.title("સમાચાર લેખ શોધ")  # "News Article Search" in Gujarati
     
     # Display current date (fixed)
-    st.write(f"વર્તમાન તારીખ: {CURRENT_DATE.strftime('%d-%m-%Y')}")  # "Current Date" in Gujarati
+    st.write(f"વર્તમાન તારીખ: {CURRENT_DATE.strftime('%d-%m-%Y')}")
     
-    # Search input
+    # Search input (can be in English or Gujarati)
     search_query = st.text_input(
-        "શોધ શબ્દ દાખલ કરો",  # "Enter search term" in Gujarati
+        "શોધ શબ્દ દાખલ કરો (ગુજરાતી અથવા અંગ્રેજીમાં)",  # "Enter search term (in Gujarati or English)"
         key="search_input"
     )
     
     # Date filter
     date_filter = st.selectbox(
-        "તારીખ દ્વારા ફિલ્ટર કરો",  # "Filter by date" in Gujarati
-        ["બધો સમય", "છેલ્લા 24 કલાક", "છેલ્લા અઠવાડિયા", "છેલ્લા મહિના"]  # Date options in Gujarati
+        "તારીખ દ્વારા ફિલ્ટર કરો",
+        ["બધો સમય", "છેલ્લા 24 કલાક", "છેલ્લા અઠવાડિયા", "છેલ્લા મહિના"]
     )
     
     # Convert date filter selections to English for processing
@@ -132,17 +152,24 @@ def main():
     articles = load_articles()
     
     if search_query:
-        results = search_articles(articles, search_query, date_filter_mapping[date_filter])
+        # Translate search query to Gujarati if it's in English
+        translated_query = translate_to_gujarati(search_query)
         
-        st.subheader(f"{len(results)} પરિણામો મળ્યા")  # "Found x results" in Gujarati
+        results = search_articles(articles, search_query, translated_query, date_filter_mapping[date_filter])
+        
+        st.subheader(f"{len(results)} પરિણામો મળ્યા")
         
         for article in results:
             with st.expander(article['title']):
                 # Format the content
                 formatted_content = format_article_content(article['content'])
                 
-                # Highlight search terms
-                highlighted_content = highlight_text(formatted_content, search_query)
+                # Highlight both original and translated search terms
+                highlighted_content = highlight_text(
+                    formatted_content,
+                    search_query,
+                    translated_query
+                )
                 
                 # Display using markdown
                 st.markdown(highlighted_content)
