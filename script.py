@@ -8,6 +8,51 @@ import re
 # Set fixed current date
 CURRENT_DATE = datetime(2025, 1, 30)
 
+def highlight_text(text, search_term, is_gujarati=False):
+    """Highlight search term in text using markdown bold syntax"""
+    if not search_term:
+        return text
+    
+    # If searching in Gujarati mode, ensure search term is in Gujarati
+    if is_gujarati and not any('\u0A80' <= c <= '\u0AFF' for c in search_term):
+        translator = GoogleTranslator(source='auto', target='gu')
+        search_term = translator.translate(search_term)
+    
+    # Case insensitive replacement
+    pattern = re.compile(re.escape(search_term), re.IGNORECASE)
+    return pattern.sub(lambda m: f"**{m.group()}**", text)
+
+def format_article_content(content):
+    """Format the article content for better readability"""
+    # Extract title, date, link, and main content
+    title_match = re.search(r'Title:\s*(.+?)(?=\n|$)', content)
+    date_match = re.search(r'Date:\s*(.+?)(?=\n|$)', content)
+    link_match = re.search(r'Link:\s*(.+?)(?=\n|$)', content)
+    
+    # Format the content
+    formatted_content = ""
+    
+    # Add title if found
+    if title_match:
+        formatted_content += f"### {title_match.group(1)}\n\n"
+    
+    # Add date if found
+    if date_match:
+        formatted_content += f"**Date:** {date_match.group(1)}\n\n"
+    
+    # Add formatted link if found
+    if link_match:
+        formatted_content += f"[Link to news article]({link_match.group(1)})\n\n"
+    
+    # Extract and clean main content
+    main_content = re.sub(r'Title:.+\n|Date:.+\n|Link:.+\n', '', content).strip()
+    
+    # Format paragraphs
+    paragraphs = main_content.split('\n\n')
+    formatted_content += '\n\n'.join(para.replace('\n', ' ').strip() for para in paragraphs)
+    
+    return formatted_content
+
 def load_articles(data_folder="data"):
     """Load all articles from text files in the data folder"""
     articles = []
@@ -114,15 +159,23 @@ def main():
         
         for article in results:
             with st.expander(article['title']):
-                # Display date
-                st.write(f"Date: {article['date'].strftime('%d-%m-%Y')}")
-                
-                # Display content based on selected language
+                # Format and translate content based on selected language
                 content = article['content']
                 if lang_code != "gu":  # If English is selected, translate from Gujarati
                     content = translate_text(content, 'en')
                 
-                st.write(content)
+                # Format the content
+                formatted_content = format_article_content(content)
+                
+                # Highlight search terms
+                highlighted_content = highlight_text(
+                    formatted_content, 
+                    search_query, 
+                    is_gujarati=(lang_code == "gu")
+                )
+                
+                # Display using markdown
+                st.markdown(highlighted_content)
 
 if __name__ == "__main__":
     main()
